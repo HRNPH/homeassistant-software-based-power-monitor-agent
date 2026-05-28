@@ -23,6 +23,7 @@ A one-shot setup script that deploys a systemd service on your Proxmox host to p
 git clone https://github.com/HRNPH/homeassistant-software-based-power-monitor-agent.git
 cd homeassistant-software-based-power-monitor-agent
 sudo bash setup_power_agent.sh
+cd .. && rm -rf homeassistant-software-based-power-monitor-agent
 ```
 
 The script is interactive — it will prompt you for:
