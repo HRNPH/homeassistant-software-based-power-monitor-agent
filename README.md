@@ -78,6 +78,7 @@ sudo systemctl disable proxmox-power
 sudo rm /etc/systemd/system/proxmox-power.service
 sudo rm /usr/local/bin/proxmox_power_agent.sh
 sudo systemctl daemon-reload
+rm -rf ~/homeassistant-software-based-power-monitor-agent
 ```
 
 Then remove the sensor entities from Home Assistant (Settings → Devices & Services → Entities).

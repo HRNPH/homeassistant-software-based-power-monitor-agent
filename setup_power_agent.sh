@@ -61,17 +61,42 @@ echo "=========================================================="
 echo ""
 
 # ---------------------------------------------------------
+# RE-INSTALL DETECTION
+# ---------------------------------------------------------
+AGENT_PATH="/usr/local/bin/proxmox_power_agent.sh"
+OLD_HA_IP="" OLD_HA_PORT="" OLD_HA_TOKEN=""
+OLD_ENTITY_GROUP="" OLD_HAS_NVIDIA="false"
+
+if [ -f "$AGENT_PATH" ]; then
+    echo "[*] Existing installation detected at ${AGENT_PATH}"
+    OLD_HA_IP=$(grep -oP 'HA_BASE_URL="http://\K[^:]+' "$AGENT_PATH")
+    OLD_HA_PORT=$(grep -oP 'HA_BASE_URL="http://[^:]+:\K[^/]+' "$AGENT_PATH")
+    OLD_HA_TOKEN=$(grep -oP '^TOKEN="\K[^"]+' "$AGENT_PATH")
+    OLD_CPU_URL=$(grep -oP 'CPU_URL="\$\{HA_BASE_URL\}/sensor\.\K[^"]+' "$AGENT_PATH")
+    if [ -n "$OLD_CPU_URL" ]; then
+        OLD_ENTITY_GROUP=$(echo "$OLD_CPU_URL" | sed 's/_cpu_power$//')
+    fi
+    OLD_HAS_NVIDIA=$(grep -oP 'if \[ "\K[^"]+' "$AGENT_PATH" | head -1)
+
+    echo "[*] Stopping existing service for update..."
+    systemctl stop proxmox-power.service 2>/dev/null
+    echo ""
+fi
+
+# ---------------------------------------------------------
 # INTERACTIVE CONFIGURATION TUI
 # ---------------------------------------------------------
 # 1. Gather API Configuration
-read -p "Enter Home Assistant IP/Host (e.g., 192.168.1.50): " HA_IP
-read -p "Enter Home Assistant Port [8123]: " HA_PORT
-HA_PORT=${HA_PORT:-8123}
-read -p "Enter Home Assistant Long-Lived Access Token: " HA_TOKEN
+read -p "Enter Home Assistant IP/Host (e.g., 192.168.1.50) [${OLD_HA_IP}]: " HA_IP
+HA_IP=${HA_IP:-$OLD_HA_IP}
+read -p "Enter Home Assistant Port [${OLD_HA_PORT:-8123}]: " HA_PORT
+HA_PORT=${HA_PORT:-${OLD_HA_PORT:-8123}}
+read -p "Enter Home Assistant Long-Lived Access Token [${OLD_HA_TOKEN}]: " HA_TOKEN
+HA_TOKEN=${HA_TOKEN:-$OLD_HA_TOKEN}
 
 # 2. Entity Configuration
-read -p "Enter Proxmox Node ID/Group name [proxmox_node]: " ENTITY_GROUP
-ENTITY_GROUP=${ENTITY_GROUP:-proxmox_node}
+read -p "Enter Proxmox Node ID/Group name [${OLD_ENTITY_GROUP:-proxmox_node}]: " ENTITY_GROUP
+ENTITY_GROUP=${ENTITY_GROUP:-${OLD_ENTITY_GROUP:-proxmox_node}}
 
 read -p "Enter CPU Entity Friendly Name [Proxmox CPU Power]: " CPU_NAME
 CPU_NAME=${CPU_NAME:-Proxmox CPU Power}
@@ -92,7 +117,6 @@ if command -v nvidia-smi &> /dev/null; then
 fi
 
 # 4. Generate the Active Exporter Agent Script
-AGENT_PATH="/usr/local/bin/proxmox_power_agent.sh"
 echo -e "\n[+] Generating runtime script at ${AGENT_PATH}..."
 
 cat << 'EOF' > $AGENT_PATH
@@ -106,7 +130,7 @@ send_to_ha() {
     local url=$1 val=$2 name=$3 unique_id=$4
     curl -s -X POST -H "Authorization: Bearer $TOKEN" \
          -H "Content-Type: application/json" \
-         -d "{\"state\": \"$val\", \"unique_id\": \"$unique_id\", \"attributes\": {\"unit_of_measurement\": \"W\", \"device_class\": \"power\", \"state_class\": \"measurement\", \"friendly_name\": \"$name\"}}" \
+         -d "{\"state\": \"$val\", \"attributes\": {\"unique_id\": \"$unique_id\", \"unit_of_measurement\": \"W\", \"device_class\": \"power\", \"state_class\": \"measurement\", \"friendly_name\": \"$name\"}}" \
          "$url" > /dev/null
 }
 
